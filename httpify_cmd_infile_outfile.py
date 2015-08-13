@@ -8,9 +8,11 @@ reasons it is hardcoded here:
 '''
 cmd = 'true'
 
+
 from flask import Flask, request, abort
 from tempfile import NamedTemporaryFile
 from subprocess import call
+
 
 def command_wrapper(cmd, input_file_name, output_file_name):
     return call([cmd, '-i', input_file_name, '-o', output_file_name])
