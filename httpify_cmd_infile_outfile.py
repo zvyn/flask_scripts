@@ -56,14 +56,14 @@ def process():
         with open(input_file_name, 'w') as input_file:
             input_file.write(request.data)
     else:
-        abort(409, message="Wrong content type.")
+        abort(409, "Wrong content type.")
 
     try:
         if command_wrapper(cmd, input_file_name, output_file_name) < 1 or app.debug:
             with open(output_file_name, 'r') as output_file:
                 return output_file.read()
         else:
-            abort(500, message="Processing of input data failed.")
+            abort(500, "Processing of input data failed.")
     finally:
         rmtree(folder)
 
