@@ -22,6 +22,7 @@ def process():
 
     return abort(403, "No permissions granted.")
 
+
 if __name__ == "__main__":
     challenge_header = environ['CHALLENGE_HEADER']
     challenge_value = environ['CHALLENGE_VALUE']
