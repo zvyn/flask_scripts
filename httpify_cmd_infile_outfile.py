@@ -14,7 +14,11 @@ form = '''
 
 <head><title>this is valid html5</title></head>
 <body>
-    <form method="POST" action="http://localhost:5000/" enctype="multipart/form-data">
+    <form
+        method="POST"
+        action="http://localhost:5000/"
+        enctype="multipart/form-data"
+    >
         <input type="FILE" name="input_file">
         <input type="SUBMIT">
     </form>
@@ -25,6 +29,7 @@ from flask import Flask, request, abort
 from tempfile import mkdtemp
 from subprocess import call
 from shutil import rmtree
+from basic_auth import requires_auth
 
 
 app = Flask(__name__)
@@ -40,7 +45,8 @@ def command_wrapper(cmd, input_file_name, output_file_name):
     return call([cmd, '-i', input_file_name, '-o', output_file_name])
 
 
-@app.route("/", methods = ['GET', 'POST'])
+@app.route("/", methods=['GET', 'POST'])
+@requires_auth
 def process():
     if request.method == 'GET':
         return form
@@ -59,7 +65,8 @@ def process():
         abort(409, "Wrong content type.")
 
     try:
-        if command_wrapper(cmd, input_file_name, output_file_name) < 1 or app.debug:
+        if command_wrapper(
+                cmd, input_file_name, output_file_name) < 1 or app.debug:
             with open(output_file_name, 'r') as output_file:
                 return output_file.read()
         else:

@@ -8,7 +8,8 @@ from os import environ, chdir
 
 app = Flask(__name__)
 
-@app.route("/", methods = ['GET'])
+
+@app.route("/", methods=['GET'])
 def process():
     chdir(flask_root)
     try:
