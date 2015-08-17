@@ -1,3 +1,16 @@
+#!/usr/bin/env python3
+# Author: Milan Oberkirch <zvyn@oberkirch.org>
+
+
+"""
+Provides a `requires_auth` decorator which enables basic auth for the decorated
+function by checking for config section called username and an entry
+password_hash. If the lookup fails or the hmac hash of the given password is
+not equivalent to the one in the `config_file`, the authentication fails and a
+401 response is sent to the client.
+"""
+
+
 from crypt import crypt
 from hmac import compare_digest as compare_hash
 from configparser import ConfigParser
