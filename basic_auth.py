@@ -11,6 +11,7 @@ not equivalent to the one in the `config_file`, the authentication fails and a
 """
 
 
+from os import environ
 from crypt import crypt
 from hmac import compare_digest as compare_hash
 from configparser import ConfigParser
@@ -19,7 +20,9 @@ from flask import request, Response
 
 
 config = ConfigParser()
-config_file = 'basic_auth.ini'
+config_file = (
+    environ['BASIC_AUTH_INI'] if 'BASIC_AUTH_INI' in environ
+    else 'basic_auth.ini')
 config.read(config_file)
 
 
