@@ -14,7 +14,15 @@ not equivalent to the one in the `config_file`, the authentication fails and a
 from os import environ
 from crypt import crypt
 from hmac import compare_digest as compare_hash
-from configparser import ConfigParser
+try:
+    # Python 3
+    from configparser import ConfigParser
+except:
+    # Python 2
+    from ConfigParser import ConfigParser
+    def getitem_patch(self, section):
+        return dict(self.items(section))
+    ConfigParser.__getitem__ = getitem_patch
 from functools import wraps
 from flask import request, Response
 
