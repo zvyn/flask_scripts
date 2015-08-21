@@ -13,7 +13,17 @@ not equivalent to the one in the `config_file`, the authentication fails and a
 
 from os import environ
 from crypt import crypt
-from hmac import compare_digest as compare_hash
+try:
+    # Python 2.7.7
+    from hmac import compare_digest as compare_hash
+except:
+    # Python 2.7.6 or older
+    import hmac as old_hmac
+    def compare_hash(a,b):
+        h_a = old_hmac.new(a)
+        h_b = old_hmac.new(b)
+        return h_a.digest() == h_b.digest()
+
 try:
     # Python 3
     from configparser import ConfigParser

@@ -9,6 +9,7 @@ defaults to './inoutcmd.ini'. The output mime-type defaults to the input mime-ty
 Example config:
 
     [inoutcmd]
+    path = /api
     command = cp {infile} {outfile}
     mime-type =
 
@@ -55,7 +56,7 @@ def command_wrapper(cmd, input_file_name, output_file_name):
     return call(cmd.format(infile=input_file_name, outfile=output_file_name), shell=True)
 
 
-@app.route("/", methods=['GET', 'POST'])
+@app.route(config['inoutcmd']['path'], methods=['GET', 'POST'])
 @requires_auth
 def process():
     if request.method == 'GET':
@@ -72,6 +73,8 @@ def process():
     if content_type[:9] == 'multipart':
         input_file = request.files['input_file']
         content_type = input_file.content_type
+        if len(mime_type) and content_type != mime_type:
+            abort(409, "Please choose a %s file." % mime_type.split('/').pop())
         input_file.save(input_file_name)
     elif content_type[:4] == 'text':
         with open(input_file_name, 'w') as input_file:
@@ -82,9 +85,13 @@ def process():
     try:
         if command_wrapper(
                 command, input_file_name, output_file_name) < 1 or app.debug:
+            output_mimetype = mime_type if len(mime_type) else content_type
             return send_file(
                 output_file_name,
-                mimetype=mime_type if len(mime_type) else content_type) 
+                as_attachment=True,
+                mimetype=output_mimetype,
+                attachment_filename=('result.%s' %
+                                     output_mimetype.split('/').pop()))
         else:
             abort(500, "Processing of input data failed.")
     finally:
