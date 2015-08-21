@@ -1,31 +1,33 @@
 #!/usr/bin/env python3
 # Author: Milan Oberkirch <zvyn@oberkirch.org>
 
-'''
-Wraps a program expecting two arguments: -i filename -o filename in a http
-server. For security reasons the command name is hardcoded and for laziness
-reasons it is hardcoded here:
-'''
-cmd = ''
 
-# quick and dirty:
-form = '''
-<!DOCTYPE html>
+'''
+Wraps a program expecting two filenames as arguments ({infile} and {outfile} in
+a http server. The command is read from the INOUTCMD_INI config file which
+defaults to './inoutcmd.ini'. The output mime-type defaults to the input mime-type.
+Example config:
 
-<head><title>this is valid html5</title></head>
-<body>
-    <form
-        method="POST"
-        action="http://localhost:5000/"
-        enctype="multipart/form-data"
-    >
-        <input type="FILE" name="input_file">
-        <input type="SUBMIT">
-    </form>
-</body>
+    [inoutcmd]
+    command = cp {infile} {outfile}
+    mime-type =
+
 '''
 
-from flask import Flask, request, abort
+
+try:
+    # Python 3
+    from configparser import ConfigParser
+except:
+    # Python 2
+    from ConfigParser import ConfigParser
+    def getitem_patch(self, section):
+        return dict(self.items(section))
+    ConfigParser.__getitem__ = getitem_patch
+
+
+from os import environ
+from flask import Flask, request, abort, send_file
 from tempfile import mkdtemp
 from subprocess import call
 from shutil import rmtree
@@ -33,6 +35,14 @@ from basic_auth import requires_auth
 
 
 app = Flask(__name__)
+config = ConfigParser()
+config_file = (
+    environ['INOUTCMD_INI'] if 'INOUTCMD_INI' in environ
+    else 'inoutcmd.ini')
+config.read(config_file)
+command = config['inoutcmd']['command']
+mime_type = config['inoutcmd']['mime-type']
+
 
 
 def command_wrapper(cmd, input_file_name, output_file_name):
@@ -42,23 +52,28 @@ def command_wrapper(cmd, input_file_name, output_file_name):
         with open(output_file_name, 'w') as output_file:
             output_file.write("no command specified, input:\n%s" % input_data)
         return 0
-    return call([cmd, '-i', input_file_name, '-o', output_file_name])
+    return call(cmd.format(infile=input_file_name, outfile=output_file_name), shell=True)
 
 
 @app.route("/", methods=['GET', 'POST'])
 @requires_auth
 def process():
     if request.method == 'GET':
-        return form
+        if app.debug:
+            return config['inoutcmd']['form']
+        else:
+            abort(403, 'Method not allowed.')
 
     folder = mkdtemp(prefix=__name__)
     input_file_name = "%s/input_file" % folder
     output_file_name = "%s/output_file" % folder
+    content_type = request.headers['Content-Type']
 
-    if request.headers['Content-Type'][:9] in 'multipart':
+    if content_type[:9] == 'multipart':
         input_file = request.files['input_file']
+        content_type = input_file.content_type
         input_file.save(input_file_name)
-    elif request.headers['Content-Type'][:4] == 'text':
+    elif content_type[:4] == 'text':
         with open(input_file_name, 'w') as input_file:
             input_file.write(request.data)
     else:
@@ -66,9 +81,10 @@ def process():
 
     try:
         if command_wrapper(
-                cmd, input_file_name, output_file_name) < 1 or app.debug:
-            with open(output_file_name, 'r') as output_file:
-                return output_file.read()
+                command, input_file_name, output_file_name) < 1 or app.debug:
+            return send_file(
+                output_file_name,
+                mimetype=mime_type if len(mime_type) else content_type) 
         else:
             abort(500, "Processing of input data failed.")
     finally:
