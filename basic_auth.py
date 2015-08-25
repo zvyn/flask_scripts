@@ -12,17 +12,7 @@ not equivalent to the one in the `config_file`, the authentication fails and a
 
 
 from os import environ
-from crypt import crypt
-try:
-    # Python 2.7.7
-    from hmac import compare_digest as compare_hash
-except:
-    # Python 2.7.6 or older
-    import hmac as old_hmac
-    def compare_hash(a,b):
-        h_a = old_hmac.new(a)
-        h_b = old_hmac.new(b)
-        return h_a.digest() == h_b.digest()
+from passlib.hash import sha256_crypt as pwhash
 
 try:
     # Python 3
@@ -30,9 +20,17 @@ try:
 except:
     # Python 2
     from ConfigParser import ConfigParser
+
     def getitem_patch(self, section):
         return dict(self.items(section))
+
+    def setitem_patch(self, section, values):
+        for k, v in values.items():
+            self.set(section, k, v)
+
     ConfigParser.__getitem__ = getitem_patch
+    ConfigParser.__setitem__ = setitem_patch
+
 from functools import wraps
 from flask import request, Response
 
@@ -46,11 +44,11 @@ config.read(config_file)
 
 def check_auth(username, password):
     """
-    Check user and password using hmac.
+    Check user and password.
     """
     try:
         password_hash = config[username]["password_hash"]
-        return compare_hash(password_hash, crypt(password, password_hash))
+        return pwhash.verify(password, password_hash)
     except KeyError:
         return False
 
@@ -72,8 +70,9 @@ def requires_auth(f):
 
 
 def change_password(username, new_password):
-    config[username] = crypt(new_password)
-    config.write(config_file)
+    config[username] = {'password_hash': pwhash.encrypt(new_password)}
+    with open(config_file, 'w') as f:
+        config.write(f)
 
 if __name__ == "__main__":
     from flask import Flask

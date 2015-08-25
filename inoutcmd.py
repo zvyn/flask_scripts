@@ -3,16 +3,24 @@
 
 
 '''
-Wraps a program expecting two filenames as arguments ({infile} and {outfile} in
-a http server. The command is read from the INOUTCMD_INI config file which
-defaults to './inoutcmd.ini'. The output mime-type defaults to the input mime-type.
-Example config:
+Wraps a program expecting two filenames as arguments in a http server. The
+output mime-type defaults to the input mime-type if the mime-type setting is
+empty. If set in the config, only files of the specified type are accepted
+and produced. The configuration file is found by
+
+1. Reading a the path from the INOUTCMD_INI env variable or
+2. Looking at './inoutcmd.ini'.
+
+Example configuration:
 
     [inoutcmd]
+    # The URI used to access this API:
     path = /api
+    # The wrapped command (use '{infile}' and '{outfile}' instead of actual
+    # filenames):
     command = cp {infile} {outfile}
+    # Leave blank to allow any file-types or specify one mime-type here:
     mime-type =
-
 '''
 
 
@@ -22,8 +30,10 @@ try:
 except:
     # Python 2
     from ConfigParser import ConfigParser
+
     def getitem_patch(self, section):
         return dict(self.items(section))
+
     ConfigParser.__getitem__ = getitem_patch
 
 
@@ -32,7 +42,7 @@ from flask import Flask, request, abort, send_file
 from tempfile import mkdtemp
 from subprocess import call
 from shutil import rmtree
-from basic_auth import requires_auth
+from basic_auth import requires_auth, change_password as ba_change_password
 
 
 app = Flask(__name__)
@@ -45,7 +55,6 @@ command = config['inoutcmd']['command']
 mime_type = config['inoutcmd']['mime-type']
 
 
-
 def command_wrapper(cmd, input_file_name, output_file_name):
     if cmd == '' and app.debug:
         with open(input_file_name, 'r') as input_file:
@@ -53,7 +62,9 @@ def command_wrapper(cmd, input_file_name, output_file_name):
         with open(output_file_name, 'w') as output_file:
             output_file.write("no command specified, input:\n%s" % input_data)
         return 0
-    return call(cmd.format(infile=input_file_name, outfile=output_file_name), shell=True)
+    return call(
+        cmd.format(infile=input_file_name, outfile=output_file_name),
+        shell=True)
 
 
 @app.route(config['inoutcmd']['path'], methods=['GET', 'POST'])
@@ -84,7 +95,7 @@ def process():
 
     try:
         if command_wrapper(
-                command, input_file_name, output_file_name) < 1 or app.debug:
+                command, input_file_name, output_file_name) < 1:
             output_mimetype = mime_type if len(mime_type) else content_type
             return send_file(
                 output_file_name,
@@ -95,7 +106,19 @@ def process():
         else:
             abort(500, "Processing of input data failed.")
     finally:
-        rmtree(folder)
+        if not app.debug:
+            rmtree(folder)
+
+
+@app.route(
+    '%s/change_password' % config['inoutcmd']['path'],
+    methods=['PUT', 'POST'])
+@requires_auth
+def change_password():
+    user = request.authorization.username
+    password = request.form['password']
+    ba_change_password(user, password)
+    return "Password changed successfully!"
 
 
 if __name__ == "__main__":
